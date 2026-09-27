@@ -1,0 +1,92 @@
+spring:
+  application:
+    name: pgbench-metric-server
+  jackson:
+    default-property-inclusion: non_null
+  lifecycle:
+    timeout-per-shutdown-phase: 2m
+
+server:
+  port: 8080
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+
+info:
+  app:
+    name: pgbench-metric-server
+    description: Prometheus metrics server that runs pgbench on a schedule
+
+pgbench:
+  # Set to false to expose the metrics and the REST API without running any benchmark.
+  enabled: true
+  # Delay between two runs.
+  interval: 60s
+  initial-delay: 10s
+  # Hard limit for a single pgbench process, keep it larger than the run duration.
+  timeout: 90s
+  verify-binary: true
+
+  connection:
+    host: localhost
+    port: 5432
+    database: postgres
+    username: postgres
+    # Prefer the environment variable PGBENCH_CONNECTION_PASSWORD over this placeholder.
+    password: ${PGBENCH_PASSWORD:}
+    # Optional, exported as PGSSLMODE.
+    sslmode: ""
+    # Exported as PGCONNECT_TIMEOUT.
+    connect-timeout: 10s
+    # Exported as PG<KEY> in upper case.
+    options: {}
+
+  workload:
+    binary: pgbench
+    # BUILTIN uses a pgbench built-in script, SCRIPT uses a custom SQL script file.
+    mode: BUILTIN
+    # Names of the built-in scripts: tpcb-like, simple-update, select-only.
+    # Empty keeps the pgbench default, which is the TPC-B like script.
+    builtin-script: ""
+    # Used when mode is SCRIPT.
+    script-path: ""
+    clients: 4
+    jobs: 1
+    # Run duration, ignored when transactions is set.
+    duration: 10s
+    # Transactions per client, 0 uses the duration instead.
+    transactions: 0
+    # Reported scale factor, see pgbench --scale.
+    scale-factor: 0
+    # Set to false to pass --no-vacuum, required for custom scripts.
+    vacuum: true
+    # Progress report interval, 0 disables progress output.
+    progress-interval: 0s
+    # simple, extended or prepared, empty keeps the pgbench default.
+    query-mode: ""
+    # Target transactions per second, see pgbench --rate. 0 runs as fast as possible.
+    rate: 0
+    max-tries: 1
+    # Per command statistics, see pgbench --report-per-command.
+    report-per-command: false
+    # Passed as -D name=value.
+    variables: {}
+    # Appended to the command line, e.g. ["--aggregate-interval=1"].
+    extra-arguments: []
+
+  history:
+    # Number of runs kept in memory for GET /api/pgbench/runs.
+    max-entries: 60

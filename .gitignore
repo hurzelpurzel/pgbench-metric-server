@@ -1,0 +1,21 @@
+target/
+
+### IntelliJ IDEA ###
+.idea/
+*.iml
+*.iws
+
+### Eclipse ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### VS Code ###
+.vscode/
+
+### OS ###
+.DS_Store

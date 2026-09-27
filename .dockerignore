@@ -1,0 +1,9 @@
+# The image build compiles the application itself, so the build context only has
+# to provide the build files and the sources. Everything else is denied by default
+# and re-allowed explicitly, that keeps target/, .git/ and local editor state out
+# of the context.
+*
+!pom.xml
+!mvnw
+!.mvn
+!src

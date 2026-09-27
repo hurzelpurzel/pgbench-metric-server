@@ -13,6 +13,7 @@ per minute - and exposes the result as Prometheus metrics and as JSON.
 
 - JDK 25 (the build is configured with `java.version=25`, the Spring Boot baseline is 17)
 - `pgbench` on the `PATH` of the service user, or configured with `pgbench.workload.binary`
+- for the container image: `podman` or `docker`, no local JDK or `pgbench` is needed
 
 ## Build and run
 
@@ -28,6 +29,79 @@ pgbench -i -h localhost -U postgres -s 10 mydb
 ```
 
 A custom SQL script does not need `pgbench -i`, see [Workload modes](#workload-modes).
+
+## Container image
+
+The `Dockerfile` is based on [UBI 10](https://catalog.redhat.com/software/containers/ubi10/10) and
+meets the usual OpenShift requirements: it runs as a non-root user, tolerates the arbitrary UID the
+platform assigns and exposes no privileged port.
+
+```bash
+podman build -t pgbench-metric-server:0.1.0-SNAPSHOT .
+```
+
+The image bundles the JDK 25 and `pgbench`, nothing has to be installed on top. `pgbench` is not part
+of the UBI 10 repositories, so the image build takes the client tools from the PostgreSQL upstream
+[PGDG](https://www.postgresql.org/download/linux/) repository.
+
+Prebuilt images are published in the GitHub container registry:
+
+```bash
+podman pull ghcr.io/hurzelpurzel/pgbench-metric-server:0.1.0-SNAPSHOT
+```
+
+Tags: `0.1.0-SNAPSHOT` for the current version, `latest` and `sha-<commit>` for the current build.
+Configuration works exactly as outside a container, the password belongs into an environment
+variable:
+
+```bash
+podman run --rm -p 8080:8080 \
+  -e PGBENCH_PASSWORD=secret \
+  -e PGBENCH_CONNECTION_HOST=postgres \
+  -e PGBENCH_INTERVAL=30s \
+  ghcr.io/hurzelpurzel/pgbench-metric-server:0.1.0-SNAPSHOT
+```
+
+JVM flags are set with `JAVA_TOOL_OPTIONS`, the heap defaults to 75% of the container memory limit
+and a memory-exhausted JVM exits instead of being killed. `JAVA_OPTS` has no effect, the Spring Boot
+launcher ignores it.
+
+### OpenShift
+
+The image carries the labels that make `oc new-app --image=...` create a Route for port 8080, and
+the Kubernetes probes are served by the actuator:
+
+| Probe | Path |
+| --- | --- |
+| liveness | `/actuator/health/liveness` |
+| readiness | `/actuator/health/readiness` |
+
+```bash
+oc create secret generic pgbench --from-literal=PGBENCH_PASSWORD=secret
+oc new-app ghcr.io/hurzelpurzel/pgbench-metric-server:0.1.0-SNAPSHOT \
+  --name pgbench-metric-server \
+  --from-secret=pgbench \
+  --env PGBENCH_CONNECTION_HOST=postgres
+```
+
+A running benchmark is awaited during the shutdown, which takes up to
+`spring.lifecycle.timeout-per-shutdown-phase` (2m). Raise the grace period of the pod, otherwise
+`SIGTERM` leads to a forced kill before the current run has finished:
+
+```bash
+oc patch dc/pgbench-metric-server \
+  -p '{"spec":{"template":{"spec":{"terminationGracePeriodSeconds":150}}}}'
+```
+
+A private package needs an image pull secret in the service accounts of the namespace:
+
+```bash
+oc create secret docker-registry ghcr --docker-server=ghcr.io \
+  --docker-username=<user> --docker-password=<token> \
+  -n pgbench
+oc patch sa/default -n pgbench \
+  -p '{"imagePullSecrets":[{"name":"ghcr"}]}'
+```
 
 ## Configuration
 

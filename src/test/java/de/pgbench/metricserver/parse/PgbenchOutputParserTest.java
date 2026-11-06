@@ -75,13 +75,29 @@ class PgbenchOutputParserTest {
         PgbenchMeasurements measurements = parser.parse(output);
 
         assertThat(measurements.clientVersion()).isEqualTo("17.2");
-        assertThat(measurements.serverVersion()).isNull();
+        assertThat(measurements.serverVersion()).isEqualTo("17.2");
         assertThat(measurements.reportedDurationSeconds()).isEqualTo(2);
         assertThat(measurements.transactionsProcessed()).isEqualTo(1100L);
         assertThat(measurements.transactionsPlanned()).isNull();
         assertThat(measurements.failedTransactions()).isEqualTo(1L);
         assertThat(measurements.failedTransactionsPercent()).isEqualTo(0.091);
         assertThat(measurements.tps()).isEqualTo(549.5);
+    }
+
+    @Test
+    @DisplayName("assumes the client version when pgbench omits the server version")
+    void assumesServerVersionFromClientVersion() {
+        String output = """
+                pgbench (17.11)
+                transaction type: <builtin: TPC-B (sort of)>
+                number of transactions actually processed: 10
+                tps = 100.0 (without initial connection time)
+                """;
+
+        PgbenchMeasurements measurements = parser.parse(output);
+
+        assertThat(measurements.clientVersion()).isEqualTo("17.11");
+        assertThat(measurements.serverVersion()).isEqualTo("17.11");
     }
 
     @Test

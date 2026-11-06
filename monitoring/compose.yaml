@@ -1,0 +1,156 @@
+# Local demo stack for pgbench-metric-server: PostgreSQL, the metric server, a
+# Prometheus that scrapes it and a Grafana with a provisioned dashboard. Start it
+# from the repository root with
+#
+#   podman-compose -f monitoring/compose.yaml up -d --build
+#
+# Grafana: http://localhost:3000, Prometheus: http://localhost:9090
+#
+# The image is built from the Dockerfile in the parent directory, so the stack
+# always runs the current sources and no prebuilt image has to be pulled.
+name: pgbench-monitoring
+
+services:
+  postgres:
+    image: docker.io/library/postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+      # Change together with PGBENCH_CONNECTION_PASSWORD below, or pass
+      # POSTGRES_PASSWORD in the environment / a .env file.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret}
+    # No port mapping: only the containers of this network talk to the database,
+    # and the host port 5432 usually already belongs to a local PostgreSQL.
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  # The built-in TPC-B like workload needs the pgbench tables, the server never
+  # initializes them itself (same as a manual "pgbench -i"). The image bundles
+  # pgbench 17, so the initializer uses the very same client as the runs.
+  pgbench-init:
+    image: localhost/pgbench-metric-server:0.1.0-SNAPSHOT
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # "pgbench -i" drops and recreates the tables, so it only runs when they are
+    # missing. That keeps restarts of the stack from interrupting a running
+    # benchmark, and a fresh volume is still initialized automatically.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        # "$$" is the compose escape for a literal "$", otherwise podman-compose
+        # substitutes the shell variables of this script itself.
+        tables=$$(psql -h postgres -U postgres -d postgres -tAc \
+          "select count(*) from pg_class where oid = to_regclass('public.pgbench_accounts')")
+        if [ "$$tables" = "1" ]; then
+          echo "pgbench tables already present, skipping initialisation"
+        else
+          exec pgbench -h postgres -U postgres -d postgres -i -s 1
+        fi
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:-secret}
+    restart: "no"
+
+  pgbench-metric-server:
+    image: localhost/pgbench-metric-server:0.1.0-SNAPSHOT
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pgbench-init:
+        condition: service_completed_successfully
+    environment:
+      PGBENCH_CONNECTION_HOST: postgres
+      PGBENCH_CONNECTION_PORT: "5432"
+      PGBENCH_CONNECTION_DATABASE: postgres
+      PGBENCH_CONNECTION_USERNAME: postgres
+      PGBENCH_CONNECTION_PASSWORD: ${POSTGRES_PASSWORD:-secret}
+      # Short interval and duration keep the demo responsive; production values
+      # are 60s and 10s, see application.yml.
+      PGBENCH_INTERVAL: 20s
+      PGBENCH_INITIAL_DELAY: 5s
+      PGBENCH_WORKLOAD_DURATION: 5s
+      PGBENCH_WORKLOAD_CLIENTS: "4"
+    ports:
+      - "8080:8080"
+    # The image contains curl (the Dockerfile uses it in the runtime stage), so no
+    # extra tool has to be installed for the probe. Prometheus only starts once the
+    # scrape target answers, which avoids an initial "down" in the UI.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost:8080/actuator/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  prometheus:
+    image: docker.io/prom/prometheus:latest
+    depends_on:
+      pgbench-metric-server:
+        condition: service_healthy
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      # Keep the local volume small, the demo data is not meant for long term use.
+      - "--storage.tsdb.retention.time=7d"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro,Z
+      - prometheusdata:/prometheus
+    ports:
+      - "9090:9090"
+    # The image ships busybox wget, so the probe needs no extra tool.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  grafana:
+    image: docker.io/grafana/grafana:13.3.0
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    environment:
+      # Read access without a login, anonymous users are Viewers only. The admin
+      # login (admin / GRAFANA_ADMIN_PASSWORD, default "admin") can still edit.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      # No outbound traffic for update checks, news or usage statistics.
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      # Open the provisioned dashboard directly instead of the Grafana home page.
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/pgbench-overview.json
+    volumes:
+      # Only the two provisioning directories are mounted, the other (empty) ones
+      # stay as they are in the image, otherwise Grafana logs provisioning errors
+      # for the missing plugin and alerting directories.
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro,Z
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro,Z
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro,Z
+      - grafanadata:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  prometheusdata:
+  grafanadata:

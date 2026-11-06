@@ -12,7 +12,7 @@ Any change to configuration, metric names, or the JSON shape must be mirrored th
 ## Commands
 
 ```bash
-./mvnw test                                     # 40 tests, ~8s
+./mvnw test                                     # 42 tests, ~8s
 ./mvnw test -Dtest=PgbenchOutputParserTest      # single class
 ./mvnw test -Dtest=PgbenchOutputParserTest#parsesTransactionRun
 ./mvnw -o test                                  # offline works, deps are in ~/.m2
@@ -22,7 +22,7 @@ Any change to configuration, metric names, or the JSON shape must be mirrored th
 
 - `./mvnw test` is the **only** gate: no spotless/checkstyle/formatter plugin, no `.editorconfig`,
   no CI workflow, no separate lint or typecheck step. Compilation is the typecheck.
-- `podman build .` runs the same 40 tests inside the image build (`-DskipTests` via
+- `podman build .` runs the same 42 tests inside the image build (`-DskipTests` via
   `--build-arg MAVEN_ARGS=-DskipTests` skips them), so the Dockerfile is a second test gate.
 - `pgbench` is **not installed on this machine**. `PgbenchBinaryVerifier` only logs a warning, so
   local runs end with status `ERROR` / `exitCode -1`. That is the environment, not a regression.

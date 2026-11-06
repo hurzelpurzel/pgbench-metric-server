@@ -80,18 +80,18 @@ public class PgbenchMetrics {
                 .description("Wall clock time the last pgbench process needed")
                 .baseUnit("seconds")
                 .register(registry);
-        Gauge.builder(TPS, store, resultStore -> decimal(resultStore, PgbenchMeasurements::tps))
+        Gauge.builder(TPS, store, resultStore -> boxed(resultStore, PgbenchMeasurements::tps))
                 .description("Transactions per second of the last pgbench run")
                 .register(registry);
-        Gauge.builder(LATENCY_AVERAGE, store, resultStore -> decimal(resultStore, PgbenchMeasurements::latencyAverageMs))
+        Gauge.builder(LATENCY_AVERAGE, store, resultStore -> boxed(resultStore, PgbenchMeasurements::latencyAverageMs))
                 .description("Average transaction latency of the last pgbench run")
                 .baseUnit("milliseconds")
                 .register(registry);
-        Gauge.builder(LATENCY_STDDEV, store, resultStore -> decimal(resultStore, PgbenchMeasurements::latencyStddevMs))
+        Gauge.builder(LATENCY_STDDEV, store, resultStore -> boxed(resultStore, PgbenchMeasurements::latencyStddevMs))
                 .description("Standard deviation of the transaction latency of the last pgbench run")
                 .baseUnit("milliseconds")
                 .register(registry);
-        Gauge.builder(CONNECTION_TIME, store, resultStore -> decimal(resultStore, PgbenchMeasurements::connectionTimeMs))
+        Gauge.builder(CONNECTION_TIME, store, resultStore -> boxed(resultStore, PgbenchMeasurements::connectionTimeMs))
                 .description("Initial connection time of the last pgbench run")
                 .baseUnit("milliseconds")
                 .register(registry);
@@ -107,7 +107,7 @@ public class PgbenchMetrics {
         Gauge.builder(
                         FAILED_TRANSACTIONS_PERCENT,
                         store,
-                        resultStore -> decimal(resultStore, PgbenchMeasurements::failedTransactionsPercent))
+                        resultStore -> boxed(resultStore, PgbenchMeasurements::failedTransactionsPercent))
                 .description("Share of failed transactions of the last pgbench run")
                 .baseUnit("percent")
                 .register(registry);
@@ -177,13 +177,11 @@ public class PgbenchMetrics {
                 .orElse(Double.NaN);
     }
 
-    private static double decimal(PgbenchResultStore store, ToDoubleFunction<PgbenchMeasurements> function) {
-        return store.latest()
-                .map(PgbenchRun::measurements)
-                .map(measurements -> sanitize(function.applyAsDouble(measurements)))
-                .orElse(Double.NaN);
-    }
-
+    /**
+     * Reads an optional numeric measurement. The getters return boxed values, a measurement the
+     * current pgbench version does not print (for example the latency standard deviation) is
+     * {@code null}, which becomes {@code NaN} instead of a zero.
+     */
     private static double boxed(PgbenchResultStore store, Function<PgbenchMeasurements, ? extends Number> function) {
         return store.latest()
                 .map(PgbenchRun::measurements)

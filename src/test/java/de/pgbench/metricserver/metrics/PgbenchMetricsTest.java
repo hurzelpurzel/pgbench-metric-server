@@ -80,6 +80,25 @@ class PgbenchMetricsTest {
     }
 
     @Test
+    @DisplayName("reports NaN for a single measurement the run did not print")
+    void reportsNaNForAnUnsetField() {
+        // pgbench 17 omits the "latency stddev" line in its default result block, so the field stays
+        // null although the run produced other measurements.
+        PgbenchMeasurements measurements = PgbenchMeasurements.builder()
+                .transactionsProcessed(10L)
+                .tps(10.0)
+                .latencyAverageMs(1.0)
+                .build();
+        PgbenchRun run = PgbenchRun.of(
+                Instant.now(), Instant.now(), 0, PgbenchStatus.SUCCESS, null, "pgbench", measurements);
+        store.record(run);
+        metrics.recordRun(run);
+
+        assertThat(registry.get(PgbenchMetrics.LATENCY_STDDEV).gauge().value()).isNaN();
+        assertThat(registry.get(PgbenchMetrics.TPS).gauge().value()).isEqualTo(10.0);
+    }
+
+    @Test
     @DisplayName("exposes the client and server version as labels")
     void exposesVersions() {
         PgbenchRun run = successfulRun();

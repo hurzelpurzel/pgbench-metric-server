@@ -1,0 +1,15 @@
+# Mounts the dashboards directory into Grafana, every *.json file below
+# /var/lib/grafana/dashboards becomes a dashboard in the "pgbench" folder.
+apiVersion: 1
+
+providers:
+  - name: pgbench
+    orgId: 1
+    folder: pgbench
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

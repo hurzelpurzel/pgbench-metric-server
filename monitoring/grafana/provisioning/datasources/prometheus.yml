@@ -1,0 +1,16 @@
+# Grafana loads this file at startup, the datasource is intentionally not editable
+# in the UI so the provisioned dashboards keep working after a restart.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      # Has to match scrape_interval in ../../prometheus.yml, Grafana uses it to
+      # pick a sensible $__rate_interval for the rate()/increase() queries.
+      timeInterval: 15s

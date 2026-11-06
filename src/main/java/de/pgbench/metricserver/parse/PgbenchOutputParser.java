@@ -58,7 +58,11 @@ public class PgbenchOutputParser {
     private void apply(PgbenchMeasurements.Builder builder, String line) {
         Matcher banner = BANNER.matcher(line);
         if (banner.matches()) {
-            builder.clientVersion(banner.group("client")).serverVersion(banner.group("server"));
+            // pgbench only appends ", server <version>" when the server version differs from the
+            // client version, so an omitted server version means both versions are equal.
+            String client = banner.group("client");
+            String server = banner.group("server");
+            builder.clientVersion(client).serverVersion(server != null ? server : client);
             return;
         }
         String value = group(TRANSACTION_TYPE, line, "value");

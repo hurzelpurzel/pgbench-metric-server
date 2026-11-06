@@ -7,7 +7,8 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
  * lines depending on the selected options and stops printing after the first error.
  *
  * @param clientVersion             version banner of the pgbench binary, e.g. "17.2"
- * @param serverVersion             server version reported by the pgbench banner
+ * @param serverVersion             server version reported by the pgbench banner, equal to
+ *                                  {@code clientVersion} when pgbench omits it
  * @param transactionType           e.g. "&lt;builtin: TPC-B (sort of)&gt;"
  * @param scalingFactor             value of the "scaling factor" line
  * @param queryMode                 simple, extended or prepared

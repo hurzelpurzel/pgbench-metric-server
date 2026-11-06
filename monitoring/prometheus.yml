@@ -1,0 +1,24 @@
+# Prometheus configuration for the local pgbench-metric-server stack.
+#
+# The application exposes Micrometer's Prometheus registry below the actuator
+# base path, so the metrics path is /actuator/prometheus and not the usual
+# /metrics. The target is the compose service name, both containers share the
+# network that podman-compose creates for this project.
+global:
+  # Should be shorter than pgbench.interval, otherwise a run can finish between
+  # two scrapes and its gauges are never collected.
+  scrape_interval: 15s
+  evaluation_interval: 30s
+
+scrape_configs:
+  - job_name: pgbench-metric-server
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - pgbench-metric-server:8080
+
+  # Prometheus itself, makes it visible in the UI whether scraping works at all.
+  - job_name: prometheus
+    static_configs:
+      - targets:
+          - localhost:9090

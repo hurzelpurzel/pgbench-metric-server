@@ -178,6 +178,10 @@ Scrape `GET /actuator/prometheus`. All gauges describe the **last** run.
 | `pgbench_runs_total{status}` | finished runs, `status` is `success`, `failed`, `timeout` or `error` |
 | `pgbench_info{component,version}` | version of the pgbench client and of the benchmarked server |
 
+`pgbench` only prints the server version when it differs from the client version. When both match,
+`pgbench_info{component="server"}` therefore repeats the client version instead of reporting
+`unknown`.
+
 A measurement that a run did not produce is exported as `NaN`, for example before the first run or
 after a connection error. Guard queries with `pgbench_runs_total` or `pgbench_last_run_successful`
 if you do not want to handle `NaN`:
@@ -201,6 +205,13 @@ scrape_configs:
     scrape_interval: 30s
     static_configs:
       - targets: ["pgbench-metric-server:8080"]
+```
+
+A ready-to-run stack with PostgreSQL, the metric server, Prometheus and Grafana (including a
+provisioned dashboard) is in [`monitoring/`](monitoring/README.md):
+
+```bash
+podman-compose -f monitoring/compose.yaml up -d --build
 ```
 
 ## REST API

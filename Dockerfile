@@ -5,8 +5,8 @@
 # repositories (the postgresql package there is 16 and has no pgbench binary),
 # therefore the client tools are installed from the PostgreSQL upstream PGDG repo.
 #
-#   podman build -t pgbench-metric-server:0.1.0-SNAPSHOT .
-#   podman run --rm -p 8080:8080 -e PGBENCH_PASSWORD=secret pgbench-metric-server:0.1.0-SNAPSHOT
+#   podman build -t pgbench-metric-server:0.1.0 .
+#   podman run --rm -p 8080:8080 -e PGBENCH_PASSWORD=secret pgbench-metric-server:0.1.0
 #
 # The application itself is configured exclusively through pgbench.* properties,
 # environment variables or command line arguments, see README.md.
@@ -42,7 +42,7 @@ RUN --mount=type=cache,target=/root/.m2/repository \
 FROM ${RUNTIME_IMAGE} AS runtime
 ARG PGDG_VERSION
 ARG EL_VERSION
-ARG APP_VERSION=0.1.0-SNAPSHOT
+ARG APP_VERSION=0.1.0
 ARG BUILD_DATE=unknown
 ARG VCS_REF=unknown
 USER root

@@ -19,7 +19,7 @@ per minute - and exposes the result as Prometheus metrics and as JSON.
 
 ```bash
 ./mvnw package
-java -jar target/pgbench-metric-server-0.1.0-SNAPSHOT.jar
+java -jar target/pgbench-metric-server-0.1.0.jar
 ```
 
 The built-in TPC-B like scenario needs the pgbench tables, so initialize them once per database:
@@ -37,7 +37,7 @@ meets the usual OpenShift requirements: it runs as a non-root user, tolerates th
 platform assigns and exposes no privileged port.
 
 ```bash
-podman build -t pgbench-metric-server:0.1.0-SNAPSHOT .
+podman build -t pgbench-metric-server:0.1.0 .
 ```
 
 The image bundles the JDK 25 and `pgbench`, nothing has to be installed on top. `pgbench` is not part
@@ -47,10 +47,10 @@ of the UBI 10 repositories, so the image build takes the client tools from the P
 Prebuilt images are published in the GitHub container registry:
 
 ```bash
-podman pull ghcr.io/hurzelpurzel/pgbench-metric-server:0.1.0-SNAPSHOT
+podman pull ghcr.io/hurzelpurzel/pgbench-metric-server:0.1.0
 ```
 
-Tags: `0.1.0-SNAPSHOT` for the current version, `latest` and `sha-<commit>` for the current build.
+Tags: `0.1.0` for the current version, `latest` and `sha-<commit>` for the current build.
 Configuration works exactly as outside a container, the password belongs into an environment
 variable:
 
@@ -59,7 +59,7 @@ podman run --rm -p 8080:8080 \
   -e PGBENCH_PASSWORD=secret \
   -e PGBENCH_CONNECTION_HOST=postgres \
   -e PGBENCH_INTERVAL=30s \
-  ghcr.io/hurzelpurzel/pgbench-metric-server:0.1.0-SNAPSHOT
+  ghcr.io/hurzelpurzel/pgbench-metric-server:0.1.0
 ```
 
 JVM flags are set with `JAVA_TOOL_OPTIONS`, the heap defaults to 75% of the container memory limit
@@ -78,7 +78,7 @@ the Kubernetes probes are served by the actuator:
 
 ```bash
 oc create secret generic pgbench --from-literal=PGBENCH_PASSWORD=secret
-oc new-app ghcr.io/hurzelpurzel/pgbench-metric-server:0.1.0-SNAPSHOT \
+oc new-app ghcr.io/hurzelpurzel/pgbench-metric-server:0.1.0 \
   --name pgbench-metric-server \
   --from-secret=pgbench \
   --env PGBENCH_CONNECTION_HOST=postgres
@@ -165,7 +165,7 @@ appears in a command line or a log message.
 Example with a custom script and a five minute interval:
 
 ```bash
-java -jar target/pgbench-metric-server-0.1.0-SNAPSHOT.jar \
+java -jar target/pgbench-metric-server-0.1.0.jar \
   --pgbench.interval=5m \
   --pgbench.workload.mode=SCRIPT \
   --pgbench.workload.script-path=/etc/pgbench/read-only.sql \

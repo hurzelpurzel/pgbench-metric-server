@@ -16,7 +16,7 @@ Any change to configuration, metric names, or the JSON shape must be mirrored th
 ./mvnw test -Dtest=PgbenchOutputParserTest      # single class
 ./mvnw test -Dtest=PgbenchOutputParserTest#parsesTransactionRun
 ./mvnw -o test                                  # offline works, deps are in ~/.m2
-./mvnw package                                  # -> java -jar target/pgbench-metric-server-0.1.0-SNAPSHOT.jar
+./mvnw package                                  # -> java -jar target/pgbench-metric-server-0.1.0.jar
 ./mvnw spring-boot:run
 ```
 

@@ -13,7 +13,7 @@
 
     <groupId>de.pgbench</groupId>
     <artifactId>pgbench-metric-server</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.1.0</version>
     <name>pgbench-metric-server</name>
     <description>Prometheus metrics server that periodically runs pgbench against PostgreSQL</description>
 

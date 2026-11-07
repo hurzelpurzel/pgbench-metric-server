@@ -34,7 +34,7 @@ services:
   # initializes them itself (same as a manual "pgbench -i"). The image bundles
   # pgbench 17, so the initializer uses the very same client as the runs.
   pgbench-init:
-    image: localhost/pgbench-metric-server:0.1.0-SNAPSHOT
+    image: localhost/pgbench-metric-server:0.1.0
     depends_on:
       postgres:
         condition: service_healthy
@@ -58,7 +58,7 @@ services:
     restart: "no"
 
   pgbench-metric-server:
-    image: localhost/pgbench-metric-server:0.1.0-SNAPSHOT
+    image: localhost/pgbench-metric-server:0.1.0
     build:
       context: ..
       dockerfile: Dockerfile

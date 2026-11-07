@@ -26,7 +26,7 @@ podman-compose -f monitoring/compose.yaml up -d --build
 ```
 
 `--build` builds the image from the repository `Dockerfile`, so the stack always runs the current
-sources. Drop it to reuse the existing `localhost/pgbench-metric-server:0.1.0-SNAPSHOT` image:
+sources. Drop it to reuse the existing `localhost/pgbench-metric-server:0.1.0` image:
 
 ```bash
 podman-compose -f monitoring/compose.yaml up -d

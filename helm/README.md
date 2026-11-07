@@ -52,7 +52,7 @@ curl -X POST http://localhost:8080/api/pgbench/run
 
 ```yaml
 image:
-  tag: 0.1.0-SNAPSHOT
+  tag: 0.1.0
 imagePullSecrets:
   - name: ghcr
 

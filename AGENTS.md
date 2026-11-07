@@ -120,8 +120,11 @@ Publish flow: `podman login -u <user> -p <token> ghcr.io` with a token that has 
 password comes from `.Values.pgbench.connection.password` (the chart creates a Secret) or from
 `existingSecret` (key `PGBENCH_PASSWORD` by default), never from an argument.
 
-There is no chart CI. After changing it run `helm lint helm --strict` and
-`helm template pgbench helm`; keep `helm/README.md`, the root README and `values.yaml` in sync.
+`.github/workflows/helm-chart.yml` lints, packages and pushes the chart as an OCI artifact to
+`oci://ghcr.io/<owner>/charts` for `v*` tags (and manual dispatch); the chart version must match
+the tag. After changing the chart run `helm lint helm --strict` and `helm template pgbench helm`;
+keep `helm/README.md`, the root README and `values.yaml` in sync.
+
 As with the image, every replica runs its own benchmark, so `replicaCount > 1` multiplies database
 load and does not coordinate runs.
 

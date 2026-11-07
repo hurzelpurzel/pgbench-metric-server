@@ -105,9 +105,19 @@ oc patch sa/default -n pgbench \
 
 ### Kubernetes (Helm)
 
-A Helm chart in [`helm/`](helm/README.md) deploys the service as a `Deployment` with a `Service`,
+The chart in [`helm/`](helm/README.md) deploys the service as a `Deployment` with a `Service`,
 the actuator probes, an optional password `Secret` and an optional Prometheus Operator
-`ServiceMonitor`:
+`ServiceMonitor`. Released versions are published as an OCI package:
+
+```bash
+helm install pgbench oci://ghcr.io/hurzelpurzel/charts/pgbench-metric-server \
+  --version 0.1.0 \
+  --namespace pgbench --create-namespace \
+  --set pgbench.connection.host=postgres.default.svc.cluster.local \
+  --set pgbench.connection.existingSecret=pgbench
+```
+
+To install the chart from a checkout, use `./helm` instead:
 
 ```bash
 helm install pgbench ./helm \

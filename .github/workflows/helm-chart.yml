@@ -1,0 +1,88 @@
+# Packages the Helm chart and publishes it as an OCI artifact in the GitHub
+# container registry. The chart is installable with
+#
+#   helm install pgbench oci://ghcr.io/hurzelpurzel/charts/pgbench-metric-server \
+#     --version 0.1.0
+#
+# The workflow runs for v* tags, so the version in helm/Chart.yaml has to match
+# the tag. The workflow_dispatch trigger publishes the chart version of the
+# selected branch and is meant for the first publication or a manual retry.
+name: Helm chart
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  CHART_PATH: helm
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.22.1
+
+      - name: Read chart name and version
+        id: chart
+        run: |
+          name="$(sed -n 's/^name:[[:space:]]*//p' "$CHART_PATH/Chart.yaml" | head -1 | tr -d '"')"
+          version="$(sed -n 's/^version:[[:space:]]*//p' "$CHART_PATH/Chart.yaml" | head -1 | tr -d '"')"
+          test -n "$name"
+          test -n "$version"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Check chart version against tag
+        if: github.ref_type == 'tag'
+        run: |
+          expected="v${{ steps.chart.outputs.version }}"
+          if [ "$expected" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Chart version $expected does not match tag $GITHUB_REF_NAME"
+            exit 1
+          fi
+
+      - name: Lint chart
+        run: helm lint "$CHART_PATH" --strict
+
+      - name: Package chart
+        run: |
+          mkdir -p dist
+          helm package "$CHART_PATH" --destination dist
+          test -f "dist/${{ steps.chart.outputs.name }}-${{ steps.chart.outputs.version }}.tgz"
+
+      - name: Log in to the container registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login "$REGISTRY" \
+            --username "${{ github.actor }}" \
+            --password-stdin
+
+      - name: Push chart
+        id: push
+        run: |
+          namespace="$(tr '[:upper:]' '[:lower:]' <<< "$GITHUB_REPOSITORY_OWNER")/charts"
+          chart="dist/${{ steps.chart.outputs.name }}-${{ steps.chart.outputs.version }}.tgz"
+          helm push "$chart" "oci://$REGISTRY/$namespace"
+          reference="oci://$REGISTRY/$namespace/${{ steps.chart.outputs.name }}:${{ steps.chart.outputs.version }}"
+          echo "reference=$reference" >> "$GITHUB_OUTPUT"
+
+      - name: Summary
+        run: |
+          {
+            echo "### Helm chart ${{ steps.chart.outputs.version }} published"
+            echo
+            echo '```bash'
+            echo "helm install pgbench ${{ steps.push.outputs.reference }} --version ${{ steps.chart.outputs.version }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

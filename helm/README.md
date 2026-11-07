@@ -11,7 +11,21 @@ Operator `ServiceMonitor`.
 - initialized pgbench tables (`pgbench -i`) when `pgbench.workload.mode` is `BUILTIN`
 - an image pull secret when the ghcr.io package is private
 
-## Install
+## Install from the OCI registry
+
+Released chart versions are published as OCI artifacts:
+
+```bash
+helm install pgbench oci://ghcr.io/hurzelpurzel/charts/pgbench-metric-server \
+  --version 0.1.0 \
+  --namespace pgbench --create-namespace \
+  --set pgbench.connection.host=postgres.default.svc.cluster.local \
+  --set pgbench.connection.existingSecret=pgbench
+```
+
+Inspect a published chart with `helm show values oci://ghcr.io/hurzelpurzel/charts/pgbench-metric-server --version 0.1.0`.
+
+## Install from this repository
 
 ```bash
 helm install pgbench ./helm \
@@ -255,7 +269,15 @@ extraVolumeMounts:
 - The application health endpoint does not depend on the benchmark result. A failing database is
   visible through `pgbench_last_run_successful`, not through the pod readiness.
 
+## Publishing
+
+`.github/workflows/helm-chart.yml` publishes the chart for `v*` tags. Bump `version` and
+`appVersion` in `Chart.yaml` together with `pom.xml` before creating the tag; the workflow rejects
+a tag that does not match the chart version. Manual dispatch publishes the chart version of the
+selected branch and is intended for the first publication or a retry.
+
 ## Development
+
 
 ```bash
 helm lint helm --strict

@@ -103,6 +103,24 @@ oc patch sa/default -n pgbench \
   -p '{"imagePullSecrets":[{"name":"ghcr"}]}'
 ```
 
+### Kubernetes (Helm)
+
+A Helm chart in [`helm/`](helm/README.md) deploys the service as a `Deployment` with a `Service`,
+the actuator probes, an optional password `Secret` and an optional Prometheus Operator
+`ServiceMonitor`:
+
+```bash
+helm install pgbench ./helm \
+  --namespace pgbench --create-namespace \
+  --set pgbench.connection.host=postgres.default.svc.cluster.local \
+  --set pgbench.connection.existingSecret=pgbench
+```
+
+All `pgbench.*` properties are available as chart values, see
+[`helm/values.yaml`](helm/values.yaml) and the [chart README](helm/README.md). The chart keeps the
+lifecycle rules of the image: `terminationGracePeriodSeconds` is 150 and the default strategy is
+`Recreate`, because every replica runs its own benchmark.
+
 ## Configuration
 
 Every property can be set in `application.yml`, as a command line argument

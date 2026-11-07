@@ -1,0 +1,208 @@
+# Default values for pgbench-metric-server.
+#
+# The pgbench.* block mirrors the application configuration. Every scalar is
+# rendered as the matching PGBENCH_* environment variable, so the values have
+# exactly the same meaning as in README.md of the repository root.
+
+image:
+  repository: ghcr.io/hurzelpurzel/pgbench-metric-server
+  # Defaults to .Chart.AppVersion when empty.
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Each replica runs its own pgbench schedule and keeps its own in-memory run
+# history. Only scale above 1 when the additional database load is intended.
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  # Generated from the full name when empty.
+  name: ""
+  automountServiceAccountToken: false
+  annotations: {}
+
+podAnnotations: {}
+podLabels: {}
+commonLabels: {}
+commonAnnotations: {}
+
+# Recreate avoids two pods benchmarking at the same time during a rollout.
+# With RollingUpdate use maxSurge: 0 and maxUnavailable: 1.
+deploymentStrategy:
+  type: Recreate
+  rollingUpdate: {}
+revisionHistoryLimit: 3
+
+# Must stay above spring.lifecycle.timeout-per-shutdown-phase (2m), otherwise
+# SIGTERM is followed by a forced kill before a running pgbench has finished.
+terminationGracePeriodSeconds: 150
+
+service:
+  type: ClusterIP
+  port: 8080
+  annotations: {}
+
+# Prometheus Operator ServiceMonitor, requires the prometheus-operator CRDs.
+serviceMonitor:
+  enabled: false
+  # Extra labels so the operator of your stack selects the object, e.g.
+  # release: kube-prometheus-stack.
+  labels: {}
+  path: /actuator/prometheus
+  interval: 30s
+  scrapeTimeout: 10s
+  relabelings: []
+
+pgbench:
+  # false exposes the metrics and the REST API without running a benchmark.
+  enabled: true
+  # Delay between two runs.
+  interval: 60s
+  # Delay before the first run after startup.
+  initialDelay: 10s
+  # Hard limit for a single pgbench process. Keep it clearly above the workload
+  # duration, otherwise the process is killed before it reports results.
+  timeout: 90s
+  # Log a warning at startup when the pgbench binary is missing.
+  verifyBinary: true
+
+  connection:
+    # Host and database have to be reachable from the cluster, for example the
+    # service name of a PostgreSQL StatefulSet.
+    host: localhost
+    port: 5432
+    database: postgres
+    username: postgres
+    # Prefer existingSecret in production. The value ends up in a Secret and is
+    # injected as PGBENCH_CONNECTION_PASSWORD, never on the command line.
+    password: ""
+    # Use a pre-existing Secret instead of letting the chart create one. The
+    # password above is ignored in that case.
+    existingSecret: ""
+    # Key inside the Secret, for both the existing and the chart-created one.
+    passwordKey: PGBENCH_PASSWORD
+    # Optional, exported to pgbench as PGSSLMODE.
+    sslmode: ""
+    # Exported to pgbench as PGCONNECT_TIMEOUT.
+    connectTimeout: 10s
+    # Additional libpq options, rendered as --pgbench.connection.options[key]=value.
+    # For a CA file use extraVolumes plus extraEnv (PGSSLROOTCERT) instead.
+    options: {}
+
+  workload:
+    # Path to (or name of) the pgbench executable. The image provides it on PATH.
+    binary: pgbench
+    # BUILTIN uses a built-in script, SCRIPT runs scriptPath.
+    mode: BUILTIN
+    # tpcb-like, simple-update or select-only. Empty keeps the pgbench default.
+    builtinScript: ""
+    # SQL script file, used when mode is SCRIPT. Mount it with extraVolumes and
+    # extraVolumeMounts, for example from a ConfigMap.
+    scriptPath: ""
+    clients: 4
+    jobs: 1
+    # Run duration, ignored when transactions is greater than zero.
+    duration: 10s
+    transactions: 0
+    scaleFactor: 0
+    # false adds --no-vacuum, required for custom scripts.
+    vacuum: true
+    progressInterval: 0s
+    # simple, extended or prepared. Empty keeps the pgbench default.
+    queryMode: ""
+    rate: 0
+    maxTries: 1
+    reportPerCommand: false
+    # Script variables, rendered as --pgbench.workload.variables[key]=value
+    # (-D key=value).
+    variables: {}
+    # Raw pgbench arguments, rendered as
+    # --pgbench.workload.extra-arguments[i]=value, e.g.
+    # extraArguments:
+    #   - --aggregate-interval=1
+    extraArguments: []
+
+  history:
+    # Number of runs kept in memory for GET /api/pgbench/runs.
+    maxEntries: 60
+
+# Additional Spring Boot command line arguments, e.g.
+# extraArgs:
+#   - --server.forward-headers-strategy=framework
+extraArgs: []
+
+# Additional environment variables for the container, for example
+# PGSSLROOTCERT when sslmode is verify-full.
+extraEnv: []
+#  - name: PGSSLROOTCERT
+#    value: /etc/pgbench-certs/ca.crt
+extraEnvFrom: []
+
+jvm:
+  # Replaces JAVA_TOOL_OPTIONS from the image, which already sets
+  # "-XX:MaxRAMPercentage=75.0 -XX:+ExitOnOutOfMemoryError". Leave empty to keep
+  # the image default; set the complete value when overriding it.
+  toolOptions: ""
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 512Mi
+
+# No fixed runAsUser on purpose: the image runs as 1001, OpenShift replaces that
+# with a random UID in group 0, and both work with the same manifest.
+podSecurityContext:
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+# readOnlyRootFilesystem relies on the writable /tmp emptyDir that the
+# Deployment always mounts for the JVM.
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+livenessProbe:
+  httpGet:
+    path: /actuator/health/liveness
+    port: http
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /actuator/health/readiness
+    port: http
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# Only covers a slow JVM start, the probe endpoint answers as soon as the Spring
+# context is up.
+startupProbe:
+  httpGet:
+    path: /actuator/health/liveness
+    port: http
+  periodSeconds: 5
+  failureThreshold: 30
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+priorityClassName: ""
+schedulerName: ""
+
+extraVolumes: []
+extraVolumeMounts: []

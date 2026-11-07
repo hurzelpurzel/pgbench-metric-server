@@ -110,6 +110,21 @@ Publish flow: `podman login -u <user> -p <token> ghcr.io` with a token that has 
 `ghcr.io/hurzelpurzel/pgbench-metric-server:<version>` plus `latest` and `sha-<commit>` and
 `podman push` them.
 
+## Helm chart (`helm/`)
+
+`helm/` deploys the image as a Deployment (default `deploymentStrategy: Recreate`,
+`terminationGracePeriodSeconds: 150`). Scalars in `values.yaml` are rendered as the documented
+`PGBENCH_*` environment variables; `connection.options`, `workload.variables` and
+`workload.extraArguments` become Spring Boot command line arguments with bracket notation
+(`--pgbench.workload.variables[key]=value`), which the app resolves through relaxed binding. The
+password comes from `.Values.pgbench.connection.password` (the chart creates a Secret) or from
+`existingSecret` (key `PGBENCH_PASSWORD` by default), never from an argument.
+
+There is no chart CI. After changing it run `helm lint helm --strict` and
+`helm template pgbench helm`; keep `helm/README.md`, the root README and `values.yaml` in sync.
+As with the image, every replica runs its own benchmark, so `replicaCount > 1` multiplies database
+load and does not coordinate runs.
+
 ## Testing conventions
 
 - **No mocking framework.** `ProcessRunner` is a functional interface, so fakes are lambdas:

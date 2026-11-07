@@ -1,0 +1,22 @@
+apiVersion: v2
+name: pgbench-metric-server
+description: Runs pgbench on a schedule and exposes the results as Prometheus metrics
+type: application
+version: 0.1.0
+appVersion: "0.1.0-SNAPSHOT"
+kubeVersion: ">=1.23.0-0"
+home: https://github.com/hurzelpurzel/pgbench-metric-server
+sources:
+  - https://github.com/hurzelpurzel/pgbench-metric-server
+keywords:
+  - postgresql
+  - pgbench
+  - benchmark
+  - prometheus
+  - metrics
+maintainers:
+  - name: hurzelpurzel
+    url: https://github.com/hurzelpurzel
+annotations:
+  org.opencontainers.image.source: https://github.com/hurzelpurzel/pgbench-metric-server
+  org.opencontainers.image.licenses: Apache-2.0

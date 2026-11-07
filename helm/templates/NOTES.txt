@@ -1,0 +1,45 @@
+{{- $fullName := include "pgbench-metric-server.fullname" . -}}
+{{- $secretName := include "pgbench-metric-server.passwordSecretName" . -}}
+pgbench-metric-server was deployed to namespace {{ .Release.Namespace }}.
+
+1. Reach the REST API and the metrics with a port forward:
+
+     kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ $fullName }} 8080:{{ .Values.service.port }}
+
+     curl http://localhost:8080/api/pgbench/latest
+     curl http://localhost:8080/actuator/prometheus
+     curl -X POST http://localhost:8080/api/pgbench/run
+
+2. The benchmark needs a reachable PostgreSQL and initialized pgbench tables.
+   Current target: {{ .Values.pgbench.connection.username }}@{{ .Values.pgbench.connection.host }}:{{ .Values.pgbench.connection.port }}/{{ .Values.pgbench.connection.database }}
+{{- if .Values.pgbench.connection.existingSecret }}
+   The password is read from Secret "{{ $secretName }}", key "{{ .Values.pgbench.connection.passwordKey }}".
+{{- else if .Values.pgbench.connection.password }}
+   The chart created Secret "{{ $secretName }}". Changes to the password trigger a rollout.
+{{- else }}
+   No password is configured. Set pgbench.connection.password or
+   pgbench.connection.existingSecret when the database requires one.
+{{- end }}
+
+{{- if .Values.pgbench.enabled }}
+
+3. pgbench runs every {{ .Values.pgbench.interval }} with {{ .Values.pgbench.workload.clients }} clients
+   and {{ .Values.pgbench.workload.jobs }} worker threads{{ if gt (int .Values.pgbench.workload.transactions) 0 }} for {{ .Values.pgbench.workload.transactions }} transactions per client{{ else }} for {{ .Values.pgbench.workload.duration }}{{ end }}.
+   Keep pgbench.timeout ({{ .Values.pgbench.timeout }}) clearly above the run time.
+{{- else }}
+
+3. pgbench.enabled is false, no benchmark runs are scheduled. The configured
+   interval is {{ .Values.pgbench.interval }}; set pgbench.enabled=true to start the scheduler.
+{{- end }}
+{{- if .Values.serviceMonitor.enabled }}
+
+4. A ServiceMonitor is enabled. Make sure its labels match the serviceMonitorSelector
+   of your Prometheus instance.
+{{- else }}
+
+4. Prometheus can scrape {{ $fullName }}:{{ .Values.service.port }}/actuator/prometheus,
+   or enable serviceMonitor.enabled when the Prometheus Operator is installed.
+{{- end }}
+
+Scaling note: every replica runs its own benchmark schedule. replicaCount is
+{{ .Values.replicaCount }}; increase it only when the additional load on the database is intended.

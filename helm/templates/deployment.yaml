@@ -1,0 +1,200 @@
+{{- $args := list }}
+{{- range $arg := .Values.extraArgs }}
+{{- $args = append $args (printf "%v" $arg) }}
+{{- end }}
+{{- range $key, $value := .Values.pgbench.connection.options }}
+{{- $args = append $args (printf "--pgbench.connection.options[%v]=%v" $key $value) }}
+{{- end }}
+{{- range $key, $value := .Values.pgbench.workload.variables }}
+{{- $args = append $args (printf "--pgbench.workload.variables[%v]=%v" $key $value) }}
+{{- end }}
+{{- range $index, $argument := .Values.pgbench.workload.extraArguments }}
+{{- $args = append $args (printf "--pgbench.workload.extra-arguments[%d]=%v" $index $argument) }}
+{{- end }}
+{{- $createSecret := and (not .Values.pgbench.connection.existingSecret) .Values.pgbench.connection.password }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pgbench-metric-server.fullname" . }}
+  labels:
+    {{- include "pgbench-metric-server.labels" . | nindent 4 }}
+    {{- with .Values.commonLabels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- with .Values.commonAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: {{ .Values.revisionHistoryLimit }}
+  strategy:
+    type: {{ .Values.deploymentStrategy.type }}
+    {{- if eq .Values.deploymentStrategy.type "RollingUpdate" }}
+    rollingUpdate:
+      {{- toYaml .Values.deploymentStrategy.rollingUpdate | nindent 6 }}
+    {{- end }}
+  selector:
+    matchLabels:
+      {{- include "pgbench-metric-server.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pgbench-metric-server.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- if or .Values.podAnnotations $createSecret }}
+      annotations:
+        {{- if $createSecret }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "pgbench-metric-server.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- with .Values.schedulerName }}
+      schedulerName: {{ . }}
+      {{- end }}
+      containers:
+        - name: pgbench-metric-server
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with $args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: PGBENCH_ENABLED
+              value: {{ .Values.pgbench.enabled | quote }}
+            - name: PGBENCH_INTERVAL
+              value: {{ .Values.pgbench.interval | quote }}
+            - name: PGBENCH_INITIAL_DELAY
+              value: {{ .Values.pgbench.initialDelay | quote }}
+            - name: PGBENCH_TIMEOUT
+              value: {{ .Values.pgbench.timeout | quote }}
+            - name: PGBENCH_VERIFY_BINARY
+              value: {{ .Values.pgbench.verifyBinary | quote }}
+            - name: PGBENCH_CONNECTION_HOST
+              value: {{ .Values.pgbench.connection.host | quote }}
+            - name: PGBENCH_CONNECTION_PORT
+              value: {{ .Values.pgbench.connection.port | quote }}
+            - name: PGBENCH_CONNECTION_DATABASE
+              value: {{ .Values.pgbench.connection.database | quote }}
+            - name: PGBENCH_CONNECTION_USERNAME
+              value: {{ .Values.pgbench.connection.username | quote }}
+            {{- if or .Values.pgbench.connection.existingSecret .Values.pgbench.connection.password }}
+            - name: PGBENCH_CONNECTION_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "pgbench-metric-server.passwordSecretName" . }}
+                  key: {{ .Values.pgbench.connection.passwordKey }}
+            {{- end }}
+            - name: PGBENCH_CONNECTION_SSLMODE
+              value: {{ .Values.pgbench.connection.sslmode | quote }}
+            - name: PGBENCH_CONNECTION_CONNECT_TIMEOUT
+              value: {{ .Values.pgbench.connection.connectTimeout | quote }}
+            - name: PGBENCH_WORKLOAD_BINARY
+              value: {{ .Values.pgbench.workload.binary | quote }}
+            - name: PGBENCH_WORKLOAD_MODE
+              value: {{ .Values.pgbench.workload.mode | quote }}
+            - name: PGBENCH_WORKLOAD_BUILTIN_SCRIPT
+              value: {{ .Values.pgbench.workload.builtinScript | quote }}
+            - name: PGBENCH_WORKLOAD_SCRIPT_PATH
+              value: {{ .Values.pgbench.workload.scriptPath | quote }}
+            - name: PGBENCH_WORKLOAD_CLIENTS
+              value: {{ .Values.pgbench.workload.clients | quote }}
+            - name: PGBENCH_WORKLOAD_JOBS
+              value: {{ .Values.pgbench.workload.jobs | quote }}
+            - name: PGBENCH_WORKLOAD_DURATION
+              value: {{ .Values.pgbench.workload.duration | quote }}
+            - name: PGBENCH_WORKLOAD_TRANSACTIONS
+              value: {{ .Values.pgbench.workload.transactions | quote }}
+            - name: PGBENCH_WORKLOAD_SCALE_FACTOR
+              value: {{ .Values.pgbench.workload.scaleFactor | quote }}
+            - name: PGBENCH_WORKLOAD_VACUUM
+              value: {{ .Values.pgbench.workload.vacuum | quote }}
+            - name: PGBENCH_WORKLOAD_PROGRESS_INTERVAL
+              value: {{ .Values.pgbench.workload.progressInterval | quote }}
+            - name: PGBENCH_WORKLOAD_QUERY_MODE
+              value: {{ .Values.pgbench.workload.queryMode | quote }}
+            - name: PGBENCH_WORKLOAD_RATE
+              value: {{ .Values.pgbench.workload.rate | quote }}
+            - name: PGBENCH_WORKLOAD_MAX_TRIES
+              value: {{ .Values.pgbench.workload.maxTries | quote }}
+            - name: PGBENCH_WORKLOAD_REPORT_PER_COMMAND
+              value: {{ .Values.pgbench.workload.reportPerCommand | quote }}
+            - name: PGBENCH_HISTORY_MAX_ENTRIES
+              value: {{ .Values.pgbench.history.maxEntries | quote }}
+            {{- if .Values.jvm.toolOptions }}
+            - name: JAVA_TOOL_OPTIONS
+              value: {{ .Values.jvm.toolOptions | quote }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.extraEnvFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.startupProbe }}
+          startupProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
